@@ -5,7 +5,7 @@ const int kNumBaudRates = sizeof(kBaudRates) / sizeof(kBaudRates[0]);
 
 const int kBuzzerPin = 9;
 const int kRxPin = 2;
-const int kStabilizationTime = 2000;
+const int kStabilizationTime = 1000;
 const int kMinValidChars = 3; // Minimum number of valid ASCII characters to confirm detection
 
 SoftwareSerial uart(kRxPin, -1); // RX, TX (TX is not used)
@@ -14,11 +14,12 @@ void setup()
 {
     pinMode(kBuzzerPin, OUTPUT);
     Serial.begin(115200);
-    Serial.println("UART Discovery Module Initialized");
+    Serial.println("[UART Discovery Module Initialized]");
 }
 
 void loop()
 {
+Retry:
     size_t i = 0;
     for (; i < kNumBaudRates; i++) {
         uart.end();
@@ -38,6 +39,11 @@ void loop()
 
                 // Check for ASCII chars..
                 if (receivedChar >= 32 && receivedChar <= 126) {
+                    if (receivedChar == '?' || receivedChar == ' ' || receivedChar == '@'
+                            || receivedChar == '\n' || receivedChar == '\r') {
+                        continue;
+                    }
+
                     validCharCount++;
                     Serial.print("Received: ");
                     Serial.println(receivedChar);
@@ -56,9 +62,23 @@ void loop()
         }
     }
     // Reset to the initial baud rate for stability
-    uart.end();
     delay(100);
-    Serial.println("Baud Rate: " + String(kBaudRates[i]));
+
+    if (i >= kNumBaudRates) {
+        Serial.println("No valid baud rate detected");
+        goto Retry;
+    } else {
+        beep();
+        Serial.print("UART detected with baud rate: ");
+        Serial.println(kBaudRates[i]);
+        char r;
+        while (true) {
+            if (uart.available()) {
+                r = uart.read();
+                Serial.print(r);
+            }
+        }
+    }
 
     for (;;) ;
 }
